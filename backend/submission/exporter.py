@@ -29,6 +29,10 @@ class SubmissionExporter:
         if len(ranked_items) != 100:
             raise ValueError(f"Submission requires exactly 100 ranked candidates. Got {len(ranked_items)}.")
             
+        # 1. TIE-BREAKING: Ensure strictly deterministic sorting before export
+        # Sort by final_score descending, then candidate_id ascending for ties
+        ranked_items.sort(key=lambda x: (-x[0].features.final_score, x[0].candidate.candidate_id))
+            
         # Basic validation pass before writing
         for rank, (result, reasoning) in enumerate(ranked_items, start=1):
             if not result.candidate or not getattr(result.candidate, "candidate_id", None):
