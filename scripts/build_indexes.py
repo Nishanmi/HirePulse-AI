@@ -6,6 +6,10 @@ import pickle
 import sys
 from pathlib import Path
 
+# Ensure the project root is in sys.path so we can import 'backend'
+project_root = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(project_root))
+
 import faiss
 from rank_bm25 import BM25Okapi
 
@@ -44,53 +48,74 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
 
     try:
-        # 1. Parse candidates
-        logger.info("Parsing candidates from %s...", args.candidates)
-        candidates = parse_candidates(args.candidates)
-        logger.info("Successfully parsed %d candidates.", len(candidates))
-
-        if not candidates:
-            logger.error("No candidates found. Exiting.")
-            sys.exit(1)
-
-        # 2. Generate embeddings
+        from backend.candidate.parser import stream_candidates_in_batches
+        
         logger.info("Initializing Embedding Encoder...")
         encoder = EmbeddingEncoder()
         
-        logger.info("Extracting candidate text...")
-        candidate_texts = [extract_candidate_text(c) for c in candidates]
-        candidate_ids = [c.candidate_id for c in candidates]
-        
-        logger.info("Generating candidate embeddings (this may take a while)...")
-        embeddings = encoder.encode_batch(candidate_texts)
-        logger.info("Embeddings generated.")
-
-        # 3. Build FAISS index
-        logger.info("Building FAISS index...")
+        logger.info("Initializing FAISS index...")
         index = EmbeddingIndex(embedding_dim=encoder.embedding_dim)
-        index.build(embeddings, candidate_ids)
         
+        logger.info("Initializing BM25 preparation...")
+        bm25_strategy = BM25Strategy()
+        tokenised_corpus = []
+        
+        candidate_map = {}
+        total_candidates = 0
+        
+        logger.info("Streaming candidates from %s...", args.candidates)
+        
+        for batch_idx, candidate_batch in enumerate(stream_candidates_in_batches(args.candidates, batch_size=5000)):
+            if not candidate_batch:
+                continue
+                
+            total_candidates += len(candidate_batch)
+            logger.info("Processing batch %d (size: %d)...", batch_idx + 1, len(candidate_batch))
+            
+            # Extract texts and ids
+            candidate_texts = [extract_candidate_text(c) for c in candidate_batch]
+            candidate_ids = [c.candidate_id for c in candidate_batch]
+            
+            # Save to global map (stores Pydantic objects for metadata)
+            for c in candidate_batch:
+                candidate_map[c.candidate_id] = c
+                
+            # 1. FAISS embeddings
+            logger.info("Generating embeddings for batch %d...", batch_idx + 1)
+            # Use tuned batch_size for CPU L2/L3 cache
+            embeddings = encoder.encode_batch(candidate_texts, batch_size=32)
+            index.build(embeddings, candidate_ids)
+            
+            # 2. BM25 Accumulation
+            logger.info("Tokenizing for BM25 (batch %d)...", batch_idx + 1)
+            corpus = [bm25_strategy._build_candidate_document(c) for c in candidate_batch]
+            batch_tokens = [bm25_strategy._tokenise(doc) for doc in corpus]
+            tokenised_corpus.extend(batch_tokens)
+            
+        if total_candidates == 0:
+            logger.error("No candidates found. Exiting.")
+            sys.exit(1)
+            
+        logger.info("All batches processed. Total candidates: %d", total_candidates)
+
+        # Finalize FAISS
+        logger.info("Saving FAISS index...")
         faiss_path = output_dir / "faiss.index"
         faiss.write_index(index._index, str(faiss_path))
         logger.info("Saved FAISS index to %s", faiss_path)
 
-        # 4. Build BM25 index
-        logger.info("Building BM25 index...")
-        bm25_strategy = BM25Strategy()
-        corpus = [bm25_strategy._build_candidate_document(c) for c in candidates]
-        tokenised_corpus = [bm25_strategy._tokenise(doc) for doc in corpus]
+        # Finalize BM25
+        logger.info("Building final BM25 index (this may take a moment)...")
         bm25_index = BM25Okapi(tokenised_corpus)
-        
         bm25_path = output_dir / "bm25.pkl"
         with open(bm25_path, "wb") as f:
             pickle.dump(bm25_index, f)
         logger.info("Saved BM25 index to %s", bm25_path)
 
-        # 5. Save candidate metadata
+        # Finalize Metadata
         logger.info("Saving candidate metadata...")
-        # Store both the candidate objects and the FAISS mapping
         metadata = {
-            "candidates": {c.candidate_id: c for c in candidates},
+            "candidates": candidate_map,
             "faiss_map": index._candidate_map
         }
         meta_path = output_dir / "candidate_metadata.pkl"
