@@ -106,13 +106,26 @@ class FeatureEngine:
         if jd.preferred_skills:
             preferred_score = preferred_matches / len(jd.preferred_skills)
 
-        # Weight must_have higher than preferred
+        # Base skill score
         if jd.must_have_skills and jd.preferred_skills:
-            return (must_have_score * 0.7) + (preferred_score * 0.3)
+            skill_score = (must_have_score * 0.7) + (preferred_score * 0.3)
         elif jd.must_have_skills:
-            return must_have_score
+            skill_score = must_have_score
         else:
-            return preferred_score
+            skill_score = preferred_score
+            
+        # Title mismatch penalty (Honeypot trap filter)
+        title_penalty = 1.0
+        if jd.title and candidate.profile.current_title:
+            jd_title_words = self._extract_words(jd.title)
+            cand_title_words = self._extract_words(candidate.profile.current_title)
+            
+            # If there's absolutely zero overlap in words between JD title and Candidate title
+            if jd_title_words and cand_title_words and not jd_title_words.intersection(cand_title_words):
+                # Slash the technical match score by 80% to penalize keyword stuffers with irrelevant titles
+                title_penalty = 0.2
+                
+        return skill_score * title_penalty
 
     def _compute_experience_match(self, candidate: Candidate, jd: JobDescription) -> float:
         """Compares candidate's years of experience with JD requirements."""
@@ -156,6 +169,17 @@ class FeatureEngine:
                 coverage = len(intersection) / len(jd_behavioral_words)
                 base_score += (coverage * 0.3)
                 
+        # SEVERE BEHAVIORAL PENALTIES (Hackathon constraint)
+        # 1. Response Rate Trap
+        if signals.recruiter_response_rate < 0.10:
+            base_score *= 0.1  # 90% penalty for ghosting recruiters
+            
+        # 2. Inactive/Stale Trap
+        from datetime import date
+        days_inactive = (date.today() - signals.last_active_date).days
+        if days_inactive > 90:
+            base_score *= 0.1  # 90% penalty if hasn't logged in for 3 months
+                
         return min(1.0, max(0.0, base_score))
 
     def _compute_recruiter_interest(self, candidate: Candidate) -> float:
@@ -196,7 +220,7 @@ class FeatureEngine:
         return min(1.0, max(0.0, score))
 
     def _compute_validation_score(self, candidate: Candidate) -> float:
-        """Scores candidate based on profile completeness and verifications."""
+        """Scores candidate based on profile completeness and verifications, penalizing anomalies."""
         signals = candidate.redrob_signals
         score = signals.profile_completeness_score / 100.0
         
@@ -206,6 +230,22 @@ class FeatureEngine:
         if not signals.verified_phone:
             score -= 0.1
             
+        # TIMELINE ANOMALY TRAP FILTER (e.g. 10 years exp but graduated 2 years ago)
+        yoe = candidate.profile.years_of_experience
+        latest_grad_year = 0
+        for edu in candidate.education:
+            if edu.end_year and edu.end_year > latest_grad_year:
+                latest_grad_year = edu.end_year
+                
+        if latest_grad_year > 0:
+            from datetime import date
+            current_year = date.today().year
+            # Max possible post-grad experience (allowing 3 years of leeway for working during school)
+            max_realistic_yoe = max(0, current_year - latest_grad_year) + 3
+            if yoe > max_realistic_yoe:
+                # Severe penalty for impossible timeline
+                score *= 0.1
+                
         return min(1.0, max(0.0, score))
 
     def _compute_culture_fit(self, candidate: Candidate, jd: JobDescription) -> float:
