@@ -30,13 +30,20 @@ def parse_candidates(file_path: Union[str, Path]) -> List[Candidate]:
         
     try:
         with open(path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+            if path.suffix.lower() == '.jsonl':
+                data = []
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        data.append(json.loads(line))
+            else:
+                data = json.load(f)
     except json.JSONDecodeError as e:
         raise ValueError(f"Malformed JSON in candidate data file {path}: {e}") from e
 
     # Assume data is a list of candidate dictionaries
     if not isinstance(data, list):
-        raise ValueError(f"Expected a JSON list of candidate records, got {type(data).__name__}")
+        raise ValueError(f"Expected a JSON list or JSONL lines of candidate records, got {type(data).__name__}")
         
     candidates = []
     
