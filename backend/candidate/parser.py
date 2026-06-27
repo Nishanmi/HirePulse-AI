@@ -58,3 +58,56 @@ def parse_candidates(file_path: Union[str, Path]) -> List[Candidate]:
     logger.info(f"Successfully parsed {len(candidates)} out of {len(data)} candidate records from {path}")
     
     return candidates
+
+def stream_candidates_in_batches(file_path: Union[str, Path], batch_size: int = 5000):
+    """
+    Load and parse a JSONL file containing candidate records in chunks.
+    Yields batches of Candidate models to prevent massive memory spikes.
+    """
+    path = Path(file_path)
+    
+    if not path.is_file():
+        raise FileNotFoundError(f"Candidate data file not found: {path}")
+        
+    if path.suffix.lower() != '.jsonl':
+        # Fallback for standard JSON: unfortunately we have to load it all, but we can yield in chunks
+        logger.info(f"Streaming from standard JSON file (loads into memory first): {path}")
+        with open(path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            batch = []
+            for record in data:
+                try:
+                    candidate = Candidate.model_validate(record)
+                    batch.append(candidate)
+                    if len(batch) >= batch_size:
+                        yield batch
+                        batch = []
+                except ValidationError as e:
+                    logger.warning(f"Skipping invalid candidate record: {e}")
+            if batch:
+                yield batch
+        return
+
+    # Efficient streaming for JSONL
+    logger.info(f"Efficiently streaming from JSONL file: {path}")
+    with open(path, 'r', encoding='utf-8') as f:
+        batch = []
+        for idx, line in enumerate(f):
+            line = line.strip()
+            if not line:
+                continue
+                
+            try:
+                record = json.loads(line)
+                candidate = Candidate.model_validate(record)
+                batch.append(candidate)
+            except (json.JSONDecodeError, ValidationError) as e:
+                logger.warning(f"Skipping invalid record at line {idx}: {e}")
+                continue
+                
+            if len(batch) >= batch_size:
+                yield batch
+                batch = []
+                
+        if batch:
+            yield batch
