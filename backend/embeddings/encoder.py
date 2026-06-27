@@ -16,6 +16,7 @@ class EmbeddingEncoder:
 
     The model is loaded once and cached at the class level so that multiple
     instances of EmbeddingEncoder share the same in-memory model.
+    It supports loading from a local offline directory if available.
     """
 
     _model_cache: ClassVar[dict[str, SentenceTransformer]] = {}
@@ -94,11 +95,24 @@ class EmbeddingEncoder:
     @classmethod
     def _get_or_load_model(cls, model_name: str) -> SentenceTransformer:
         """Loads the model once and caches it at the class level."""
+        import os
+        
         if model_name not in cls._model_cache:
-            logger.info("Loading Sentence Transformer model: %s", model_name)
-            cls._model_cache[model_name] = SentenceTransformer(
-                model_name,
-                device="cpu",
-            )
+            # Check if the model has been downloaded locally
+            local_model_path = os.path.join("data", "models", model_name.split("/")[-1])
+            
+            if os.path.exists(local_model_path):
+                logger.info("Loading Sentence Transformer from local offline path: %s", local_model_path)
+                cls._model_cache[model_name] = SentenceTransformer(
+                    local_model_path,
+                    device="cpu",
+                    local_files_only=True
+                )
+            else:
+                logger.info("Loading Sentence Transformer from Hub: %s", model_name)
+                cls._model_cache[model_name] = SentenceTransformer(
+                    model_name,
+                    device="cpu",
+                )
             logger.info("Model loaded successfully: %s", model_name)
         return cls._model_cache[model_name]
