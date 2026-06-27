@@ -22,6 +22,11 @@ def main():
         required=True, 
         help="Path to the output submission CSV file."
     )
+    parser.add_argument(
+        "--index-dir",
+        required=False,
+        help="Optional path to directory containing precomputed indexes (faiss.index, bm25.pkl, candidate_metadata.pkl)."
+    )
     
     args = parser.parse_args()
     
@@ -53,7 +58,8 @@ def main():
         runner.run(
             dataset_path=args.candidates,
             jd_text=jd_text,
-            output_csv_path=args.out
+            output_csv_path=args.out,
+            index_dir=args.index_dir
         )
         
         logger.info("Pipeline execution completed successfully.")

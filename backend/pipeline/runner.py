@@ -1,5 +1,9 @@
 import logging
-from typing import List, Tuple
+import pickle
+from pathlib import Path
+from typing import List, Tuple, Optional
+
+import faiss
 
 from backend.candidate.parser import parse_candidates
 from backend.jd.extractor import JDExtractor
@@ -14,6 +18,27 @@ from backend.explainability.explanation_engine import ExplanationEngine
 from backend.submission.exporter import SubmissionExporter
 
 logger = logging.getLogger(__name__)
+
+class PreloadedBM25Strategy(BM25Strategy):
+    """Overrides BM25Strategy to use a precomputed BM25Okapi index."""
+    def __init__(self, bm25_index):
+        super().__init__()
+        self.bm25_index = bm25_index
+
+    def score_candidates(self, candidates, jd):
+        if not candidates:
+            return {}
+        query = self._build_query(jd)
+        if not query:
+            logger.warning("BM25Strategy: empty query derived from job description.")
+            return {c.candidate_id: 0.0 for c in candidates}
+        tokenised_query = self._tokenise(query)
+        raw_scores = self.bm25_index.get_scores(tokenised_query)
+        scores = self._normalise_scores(raw_scores)
+        return {
+            candidates[i].candidate_id: scores[i]
+            for i in range(len(candidates))
+        }
 
 class PipelineRunner:
     """
@@ -39,7 +64,13 @@ class PipelineRunner:
         else:
             self.top_k = top_k_retrieval
             
-    def run(self, dataset_path: str, jd_text: str, output_csv_path: str) -> None:
+    def run(
+        self, 
+        dataset_path: str, 
+        jd_text: str, 
+        output_csv_path: str,
+        index_dir: Optional[str] = None
+    ) -> None:
         """
         Executes the full ranking pipeline.
         
@@ -47,19 +78,40 @@ class PipelineRunner:
             dataset_path: Path to the JSON file containing the candidate dataset.
             jd_text: The raw text of the job description.
             output_csv_path: The file path where the final submission CSV will be saved.
+            index_dir: Optional path to directory containing precomputed indexes.
         """
         logger.info("Starting HirePulse pipeline execution...")
         
-        # 1. Parse candidates
-        logger.info("Loading candidates from %s...", dataset_path)
-        try:
-            candidates = parse_candidates(dataset_path)
-        except Exception as e:
-            raise RuntimeError(f"Failed to load candidates from {dataset_path}: {e}") from e
+        load_from_index = False
+        if index_dir:
+            idx_path = Path(index_dir)
+            faiss_path = idx_path / "faiss.index"
+            bm25_path = idx_path / "bm25.pkl"
+            meta_path = idx_path / "candidate_metadata.pkl"
             
-        if not candidates:
-            raise ValueError(f"No valid candidates parsed from {dataset_path}")
-        logger.info("Successfully loaded %d candidates.", len(candidates))
+            if faiss_path.exists() and bm25_path.exists() and meta_path.exists():
+                load_from_index = True
+                logger.info("Precomputed artifacts found in %s. Loading them...", index_dir)
+            else:
+                logger.info("Precomputed artifacts missing in %s. Falling back to rebuild.", index_dir)
+
+        if load_from_index:
+            logger.info("Loading candidates from candidate_metadata.pkl...")
+            with open(meta_path, "rb") as f:
+                metadata = pickle.load(f)
+                candidates = list(metadata["candidates"].values())
+            logger.info("Successfully loaded %d candidates from precomputed metadata.", len(candidates))
+        else:
+            # 1. Parse candidates
+            logger.info("Loading candidates from %s...", dataset_path)
+            try:
+                candidates = parse_candidates(dataset_path)
+            except Exception as e:
+                raise RuntimeError(f"Failed to load candidates from {dataset_path}: {e}") from e
+                
+            if not candidates:
+                raise ValueError(f"No valid candidates parsed from {dataset_path}")
+            logger.info("Successfully loaded %d candidates.", len(candidates))
 
         # 2. Extract JD
         logger.info("Extracting structured job description...")
@@ -70,29 +122,48 @@ class PipelineRunner:
             raise RuntimeError(f"Failed to extract job description: {e}") from e
         logger.info("Extracted Job Description for role: %s", jd.title)
 
-        # 3. Build Embeddings
+        # 3. Build/Load Embeddings
         logger.info("Initializing Embedding Encoder...")
         try:
             encoder = EmbeddingEncoder()
         except Exception as e:
             raise RuntimeError(f"Failed to initialize embedding encoder: {e}") from e
             
-        logger.info("Encoding candidate texts and building FAISS index...")
-        candidate_ids = [c.candidate_id for c in candidates]
-        candidate_texts = [self._extract_candidate_text(c) for c in candidates]
+        index = EmbeddingIndex(embedding_dim=encoder.embedding_dim)
         
-        try:
-            embeddings = encoder.encode_batch(candidate_texts)
-            index = EmbeddingIndex(embedding_dim=encoder.embedding_dim)
-            index.build(embeddings, candidate_ids)
-        except Exception as e:
-            raise RuntimeError(f"Failed to build embedding index: {e}") from e
-        logger.info("Successfully built FAISS index.")
+        if load_from_index:
+            logger.info("Loading FAISS index...")
+            index._index = faiss.read_index(str(faiss_path))
+            index._candidate_map = metadata["faiss_map"]
+            if index._candidate_map:
+                index._next_id = max(index._candidate_map.keys()) + 1
+            else:
+                index._next_id = 0
+            logger.info("FAISS index loaded successfully.")
+        else:
+            logger.info("Encoding candidate texts and building FAISS index...")
+            candidate_ids = [c.candidate_id for c in candidates]
+            candidate_texts = [self._extract_candidate_text(c) for c in candidates]
+            
+            try:
+                embeddings = encoder.encode_batch(candidate_texts)
+                index.build(embeddings, candidate_ids)
+            except Exception as e:
+                raise RuntimeError(f"Failed to build embedding index: {e}") from e
+            logger.info("Successfully built FAISS index.")
 
         # 4. Retrieval
         logger.info("Initializing retrieval strategies...")
         feature_strategy = FeatureBasedStrategy()
-        bm25_strategy = BM25Strategy()
+        
+        if load_from_index:
+            logger.info("Loading BM25 index...")
+            with open(bm25_path, "rb") as f:
+                bm25_index = pickle.load(f)
+            bm25_strategy = PreloadedBM25Strategy(bm25_index)
+        else:
+            bm25_strategy = BM25Strategy()
+            
         # We fetch extra candidates during embedding strategy to ensure sufficient recall
         embedding_strategy = EmbeddingStrategy(encoder=encoder, index=index, top_k=self.top_k * 3)
         
