@@ -71,7 +71,7 @@ class EmbeddingEncoder:
             texts,
             batch_size=batch_size,
             normalize_embeddings=True,
-            show_progress_bar=False,
+            show_progress_bar=True,
         )
         return np.asarray(embeddings)
 
