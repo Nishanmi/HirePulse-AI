@@ -33,3 +33,7 @@ dist/
 # Data (large/generated)
 data/processed/
 data/models/
+
+# Generated artifacts
+output/
+indexes/

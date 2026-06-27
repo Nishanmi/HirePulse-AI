@@ -305,13 +305,28 @@ class ExplanationEngine:
         cand_skill_map: Dict[str, SkillProficiency],
     ) -> str:
         """Formats matched skills with proficiency annotations where available."""
+        proper_names = {
+            "ml": "ML", "nlp": "NLP", "dl": "DL", "python": "Python",
+            "pytorch": "PyTorch", "tensorflow": "TensorFlow", "aws": "AWS",
+            "gcp": "GCP", "ci/cd": "CI/CD", "react": "React", "node.js": "Node.js",
+            "javascript": "JavaScript", "typescript": "TypeScript",
+            "postgresql": "PostgreSQL", "mongodb": "MongoDB", "fastapi": "FastAPI",
+            "kubernetes": "Kubernetes", "elasticsearch": "Elasticsearch",
+            "machine learning": "Machine Learning", "deep learning": "Deep Learning",
+            "natural language processing": "NLP",
+        }
+
         formatted: List[str] = []
         for skill in skills[:4]:
-            prof = cand_skill_map.get(skill.lower())
+            skill_lower = skill.lower()
+            canonical_skill = self._canonicalise(skill_lower)
+            display_name = proper_names.get(canonical_skill, proper_names.get(skill_lower, skill.title()))
+
+            prof = cand_skill_map.get(skill_lower)
             if prof and prof in (SkillProficiency.ADVANCED, SkillProficiency.EXPERT):
-                formatted.append(f"{skill} ({prof.value})")
+                formatted.append(f"{display_name} ({prof.value})")
             else:
-                formatted.append(skill)
+                formatted.append(display_name)
 
         if len(skills) > 4:
             formatted.append(f"and {len(skills) - 4} others")
