@@ -4,6 +4,9 @@ import logging
 import os
 import pickle
 import sys
+
+# Lock HuggingFace into offline mode permanently for hackathon safety
+os.environ["HF_HUB_OFFLINE"] = "1"
 from pathlib import Path
 
 # Ensure the project root is in sys.path so we can import 'backend'
