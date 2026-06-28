@@ -6,7 +6,7 @@ from sentence_transformers import SentenceTransformer
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL_NAME = "BAAI/bge-small-en-v1.5"
+DEFAULT_MODEL_NAME = "jinaai/jina-embeddings-v2-small-en"
 
 
 class EmbeddingEncoder:
@@ -107,13 +107,15 @@ class EmbeddingEncoder:
                 cls._model_cache[model_name] = SentenceTransformer(
                     local_model_path,
                     device="cpu",
-                    local_files_only=True
+                    local_files_only=True,
+                    trust_remote_code=False
                 )
             else:
                 logger.info("Loading Sentence Transformer from Hub: %s", model_name)
                 cls._model_cache[model_name] = SentenceTransformer(
                     model_name,
                     device="cpu",
+                    trust_remote_code=False
                 )
             logger.info("Model loaded successfully: %s", model_name)
         return cls._model_cache[model_name]
