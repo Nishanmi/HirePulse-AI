@@ -1,7 +1,11 @@
 import argparse
 import logging
+import os
 import sys
 from pathlib import Path
+
+# Lock HuggingFace into offline mode permanently for hackathon safety
+os.environ["HF_HUB_OFFLINE"] = "1"
 
 from backend.pipeline.runner import PipelineRunner
 
