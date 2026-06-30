@@ -1,3 +1,4 @@
+import gzip
 import json
 import logging
 from pathlib import Path
@@ -29,8 +30,17 @@ def parse_candidates(file_path: Union[str, Path]) -> List[Candidate]:
         raise FileNotFoundError(f"Candidate data file not found: {path}")
         
     try:
-        with open(path, 'r', encoding='utf-8') as f:
-            if path.suffix.lower() == '.jsonl':
+        # Check if file is gzipped
+        is_gz = path.suffix.lower() == '.gz'
+        open_func = gzip.open if is_gz else open
+        
+        # Determine the base format by looking at the suffix before .gz if applicable
+        # e.g., candidates.jsonl.gz -> .jsonl
+        base_suffix = path.with_suffix('').suffix.lower() if is_gz else path.suffix.lower()
+        is_jsonl = base_suffix == '.jsonl' or (is_gz and base_suffix == '')
+
+        with open_func(path, 'rt', encoding='utf-8') as f:
+            if is_jsonl:
                 data = []
                 for line in f:
                     line = line.strip()
