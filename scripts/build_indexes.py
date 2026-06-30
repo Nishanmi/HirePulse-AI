@@ -20,6 +20,7 @@ from backend.candidate.parser import parse_candidates
 from backend.embeddings.encoder import EmbeddingEncoder
 from backend.embeddings.index import EmbeddingIndex
 from backend.retrieval.bm25 import BM25Strategy
+from backend.features.engine import FeatureEngine
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -82,6 +83,50 @@ def main():
             # Save to global map (stores Pydantic objects for metadata)
             for c in candidate_batch:
                 candidate_map[c.candidate_id] = c
+                
+            # Compute Role Embeddings
+            logger.info("Generating role embeddings for batch %d...", batch_idx + 1)
+            role_titles = []
+            for c in candidate_batch:
+                c.normalized_role_title = FeatureEngine.normalize_role_title(c.profile.current_title)
+                # If empty, just use a dummy string to avoid encoder errors, or keep it empty
+                role_titles.append(c.normalized_role_title if c.normalized_role_title else "unknown")
+                
+            role_embeddings = encoder.encode_batch(role_titles, batch_size=32)
+            for c, emb in zip(candidate_batch, role_embeddings):
+                if c.normalized_role_title:
+                    c.role_embedding = emb.tolist()
+
+            # Compute Career Evidence Embeddings
+            logger.info("Generating career evidence embeddings for batch %d...", batch_idx + 1)
+            career_texts = []
+            for c in candidate_batch:
+                titles = [FeatureEngine.normalize_role_title(c.profile.current_title)]
+                for role in c.career_history[:3]:
+                    cleaned = FeatureEngine.normalize_role_title(role.title)
+                    if cleaned:
+                        titles.append(cleaned)
+                career_text = " | ".join(t for t in titles if t)
+                c.career_role_text = career_text if career_text else None
+                career_texts.append(career_text if career_text else "unknown")
+
+            career_embeddings = encoder.encode_batch(career_texts, batch_size=32)
+            for c, emb in zip(candidate_batch, career_embeddings):
+                if c.career_role_text:
+                    c.career_role_embedding = emb.tolist()
+
+            # Compute Career Description Embeddings (what candidates actually built)
+            logger.info("Generating career description embeddings for batch %d...", batch_idx + 1)
+            desc_texts = []
+            for c in candidate_batch:
+                descs = [role.description for role in c.career_history if role.description]
+                desc_text = " ".join(descs).strip()
+                desc_texts.append(desc_text if desc_text else "unknown")
+
+            desc_embeddings = encoder.encode_batch(desc_texts, batch_size=32)
+            for c, desc_text, emb in zip(candidate_batch, desc_texts, desc_embeddings):
+                if desc_text != "unknown":
+                    c.career_desc_embedding = emb.tolist()
                 
             # 1. FAISS embeddings
             logger.info("Generating embeddings for batch %d...", batch_idx + 1)

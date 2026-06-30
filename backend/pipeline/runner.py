@@ -12,6 +12,7 @@ from backend.embeddings.index import EmbeddingIndex
 from backend.retrieval.bm25 import BM25Strategy
 from backend.retrieval.embedding import EmbeddingStrategy
 from backend.retrieval.hybrid import HybridRetriever
+from backend.features.engine import FeatureEngine
 from backend.retrieval.retriever import FeatureBasedStrategy, RetrievalResult
 from backend.ranking.engine import RankingEngine
 from backend.explainability.explanation_engine import ExplanationEngine
@@ -129,6 +130,22 @@ class PipelineRunner:
         except Exception as e:
             raise RuntimeError(f"Failed to initialize embedding encoder: {e}") from e
             
+        # 3a. Encode JD Role Title for Role Similarity
+        logger.info("Encoding Job Description role title...")
+        jd.normalized_role_title = FeatureEngine.normalize_role_title(jd.title)
+        if jd.normalized_role_title:
+            jd_role_emb = encoder.encode_batch([jd.normalized_role_title])[0]
+            jd.role_embedding = jd_role_emb.tolist()
+
+        # 3b. Encode JD Requirements Text for Career Description Evidence
+        logger.info("Encoding Job Description requirements text...")
+        jd_req_parts = [jd.title]
+        jd_req_parts.extend(jd.responsibilities)
+        jd_req_text = " ".join(filter(None, jd_req_parts))
+        if jd_req_text.strip():
+            jd_req_emb = encoder.encode_batch([jd_req_text])[0]
+            jd.jd_requirements_embedding = jd_req_emb.tolist()
+            
         index = EmbeddingIndex(embedding_dim=encoder.embedding_dim)
         
         if load_from_index:
@@ -190,7 +207,7 @@ class PipelineRunner:
         # 5. Ranking
         logger.info("Running Ranking Engine...")
         ranking_engine = RankingEngine()
-        ranked_results = ranking_engine.rank(retrieved_results)
+        ranked_results = ranking_engine.rank(retrieved_results, jd)
         
         # Ensure strict secondary sorting (Score DESC, Candidate ID ASC)
         logger.info("Applying strict validation sorting...")
@@ -201,6 +218,29 @@ class PipelineRunner:
                 r.candidate.candidate_id
             )
         )
+
+        # 5b. Debug Breakdown for Top 10
+        logger.info("=========================================")
+        logger.info("         TOP 10 DEBUG BREAKDOWN          ")
+        logger.info("=========================================")
+        for i, result in enumerate(sorted_results[:10], start=1):
+            feats = result.features
+            logger.info(
+                "Rank %d | %s | Title: %s",
+                i, result.candidate.candidate_id, result.candidate.profile.current_title
+            )
+            logger.info(
+                "  -> Hybrid: %.3f | Role: %.3f | Career: %.3f | Tech: %.3f | Sem: %.3f | Exp: %.3f | Signals: %.3f | FINAL: %.3f",
+                result.relevance_score,
+                getattr(feats, 'role_relevance_score', 0) or 0,
+                getattr(feats, 'career_evidence_score', 0) or 0,
+                getattr(feats, 'technical_match_score', 0) or 0,
+                getattr(feats, 'semantic_match_score', 0) or 0,
+                getattr(feats, 'experience_score', 0) or 0,
+                getattr(feats, 'recruiter_interest_score', 0) or 0,
+                getattr(feats, 'final_score', 0) or 0
+            )
+        logger.info("=========================================")
 
         # 6. Explanations
         logger.info("Generating explanations...")
