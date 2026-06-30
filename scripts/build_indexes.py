@@ -69,7 +69,7 @@ def main():
         
         logger.info("Streaming candidates from %s...", args.candidates)
         
-        for batch_idx, candidate_batch in enumerate(stream_candidates_in_batches(args.candidates, batch_size=5000)):
+        for batch_idx, candidate_batch in enumerate(stream_candidates_in_batches(args.candidates, batch_size=1000)):
             if not candidate_batch:
                 continue
                 
