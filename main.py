@@ -56,7 +56,7 @@ def main():
             sys.exit(1)
             
         logger.info("Initializing PipelineRunner...")
-        runner = PipelineRunner(top_k_retrieval=100)
+        runner = PipelineRunner(top_k_retrieval=10000)
         
         logger.info("Starting pipeline execution...")
         runner.run(

@@ -59,11 +59,7 @@ class PipelineRunner:
             top_k_retrieval: The maximum number of candidates to retrieve and rank.
                              Must be exactly 100 to meet the submission validator requirements.
         """
-        if top_k_retrieval != 100:
-            logger.warning("Submission requires exactly 100 candidates. Overriding top_k to 100.")
-            self.top_k = 100
-        else:
-            self.top_k = top_k_retrieval
+        self.top_k = top_k_retrieval
             
     def run(
         self, 
@@ -243,11 +239,14 @@ class PipelineRunner:
         logger.info("=========================================")
 
         # 6. Explanations
-        logger.info("Generating explanations...")
+        logger.info("Generating explanations for the Top 100 candidates...")
         explanation_engine = ExplanationEngine()
         
+        # SLICE TO TOP 100 HERE to satisfy CSV constraints
+        final_top_100 = sorted_results[:100]
+        
         export_items: List[Tuple[RetrievalResult, str]] = []
-        for result in sorted_results:
+        for result in final_top_100:
             try:
                 reasoning = explanation_engine.explain(result.candidate, result.features, jd)
                 export_items.append((result, reasoning))
