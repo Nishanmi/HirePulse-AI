@@ -32,6 +32,11 @@ class JobDescription(BaseModel):
     title: str = Field(..., description="The official job title for the position.")
     company: Optional[str] = Field(None, description="The name of the hiring company.")
     
+    role_embedding: Optional[list[float]] = Field(None, description="Embedding of the normalized job title.")
+    normalized_role_title: Optional[str] = Field(None, description="Cleaned, normalized version of the job title.")
+    
+    jd_requirements_embedding: Optional[list[float]] = Field(None, description="Embedding of JD core requirements text for career-evidence matching.")
+    
     preferred_locations: list[str] = Field(default_factory=list, description="List of acceptable geographical locations.")
     work_mode: Optional[str] = Field(None, description="The work mode (e.g., Remote, Hybrid, On-site).")
     relocation_required: Optional[bool] = Field(None, description="Indicates if relocation is required for this role.")

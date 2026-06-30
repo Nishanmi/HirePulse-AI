@@ -19,6 +19,20 @@ class CandidateFeatures(BaseModel):
         description="Score representing the semantic similarity between the candidate's profile and the job description."
     )
     
+    role_relevance_score: Optional[float] = Field(
+        None, 
+        ge=0.0, 
+        le=1.0, 
+        description="Score based on the semantic similarity of the candidate's normalized role to the JD normalized role."
+    )
+    
+    career_evidence_score: Optional[float] = Field(
+        None, 
+        ge=0.0, 
+        le=1.0, 
+        description="Score based on the semantic similarity of the candidate's career history titles to the JD role."
+    )
+    
     technical_match_score: Optional[float] = Field(
         None, 
         ge=0.0, 
@@ -66,6 +80,12 @@ class CandidateFeatures(BaseModel):
         ge=0.0, 
         le=1.0, 
         description="Score indicating alignment with the company's culture and workplace environment preferences."
+    )
+    consistency_score: Optional[float] = Field(
+        None, 
+        ge=0.0, 
+        le=1.0, 
+        description="Score indicating internal coherence of the candidate's profile (e.g. alignment between titles and descriptions)."
     )
     
     final_score: Optional[float] = Field(

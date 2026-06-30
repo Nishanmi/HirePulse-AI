@@ -1,3 +1,4 @@
+from typing import Optional
 from pydantic import BaseModel, Field, ConfigDict
 
 from backend.models.profile import Profile
@@ -26,3 +27,11 @@ class Candidate(BaseModel):
     certifications: list[Certification] = Field(default_factory=list)
     languages: list[Language] = Field(default_factory=list)
     redrob_signals: RedrobSignals = Field(...)
+    
+    role_embedding: Optional[list[float]] = Field(None, description="Precomputed embedding of the normalized role title.")
+    normalized_role_title: Optional[str] = Field(None, description="Cleaned, normalized version of the current_title.")
+    
+    career_role_text: Optional[str] = Field(None, description="Concatenated normalized titles from current + last 3 roles.")
+    career_role_embedding: Optional[list[float]] = Field(None, description="Precomputed embedding of the career_role_text.")
+    
+    career_desc_embedding: Optional[list[float]] = Field(None, description="Precomputed embedding of concatenated career history descriptions.")
