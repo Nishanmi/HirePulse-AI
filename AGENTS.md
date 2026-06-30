@@ -57,7 +57,10 @@ jd/
 Job Description parsing and understanding.
 
 candidate/
-Candidate parsing and feature engineering.
+Candidate parsing.
+
+features/
+Advanced feature engineering and signal extraction.
 
 models/
 Pydantic domain models.
@@ -71,26 +74,20 @@ Ranking algorithms and scoring.
 explainability/
 Candidate explanation generation.
 
-validation/
-Profile validation and anomaly detection.
-
-pipelines/
+pipeline/
 End-to-end orchestration pipelines.
 
-frontend/
-User Interface.
+submission/
+Validation and CSV export.
 
 data/
-Raw and processed datasets.
+Raw datasets and models.
 
 tests/
 Unit and integration tests.
 
-configs/
-Configuration files.
-
-docs/
-Architecture and documentation.
+scripts/
+Offline indexing and utility scripts.
 
 ---
 
@@ -120,7 +117,7 @@ JobDescription
 
 Candidate
 
-RankingResult
+RetrievalResult
 
 Additional feature models may exist, but these remain the core business entities.
 
