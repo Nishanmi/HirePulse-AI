@@ -142,6 +142,21 @@ class ExplanationEngine:
         if all_matched:
             skills_str = self._format_skill_list(all_matched, cand_skill_map)
             fragments.append(f"matches key skills including {skills_str}")
+            
+        # Role Alignment
+        if features.role_relevance_score is not None and features.role_relevance_score > 0.40:
+            if candidate.normalized_role_title:
+                role_alignment = candidate.normalized_role_title.title()
+                fragments.append(f"shows strong title alignment as {role_alignment}")
+
+        # Career Evidence
+        if features.career_evidence_score is not None and features.career_evidence_score > 0.20:
+            if candidate.career_role_text:
+                fragments.append("built relevant infrastructure at previous roles")
+
+        # Consistency Score
+        if features.consistency_score is not None and features.consistency_score < 0.05:
+            fragments.append("shows profile inconsistency between titles and descriptions")
 
         # Experience + current role
         years = candidate.profile.years_of_experience
@@ -149,10 +164,8 @@ class ExplanationEngine:
         industry = candidate.profile.current_industry
 
         role_ctx = ""
-        if title and industry:
-            role_ctx = f" as {title} in {industry}"
-        elif title:
-            role_ctx = f" as {title}"
+        if industry:
+            role_ctx = f" in {industry}"
 
         if features.experience_score is not None and features.experience_score > 0.8:
             exp_fragment = f"brings {years:.0f} years of experience{role_ctx}"
