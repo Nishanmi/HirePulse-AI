@@ -122,25 +122,32 @@ class HybridRetriever:
         strategy_scores: List[Dict[str, float]],
     ) -> Dict[str, float]:
         """
-        Merges relevance scores from multiple strategies using weighted averaging.
+        Merges relevance scores from multiple strategies using Reciprocal Rank Fusion (RRF).
 
-        Each strategy's scores are multiplied by its corresponding weight.
-        The sum is normalised by the total weight to produce a final merged
-        score in [0, 1] for every candidate that appears in at least one
-        strategy's output.
+        Instead of linearly summing raw scores (which is vulnerable to variance mismatches 
+        and outliers), RRF ranks candidates independently within each strategy. 
+        The final score is the weighted sum of the reciprocal ranks: weight / (k + rank).
         """
-        total_weight = sum(w for _, w in self._strategies)
-        if total_weight == 0:
-            return {}
-
+        k = 60  # Standard RRF smoothing constant
         merged: Dict[str, float] = {}
 
         for scores, (_, weight) in zip(strategy_scores, self._strategies):
-            for cand_id, score in scores.items():
-                merged[cand_id] = merged.get(cand_id, 0.0) + (score * weight)
+            # Sort candidates for this strategy by their raw score descending
+            ranked_candidates = sorted(scores.items(), key=lambda item: item[1], reverse=True)
+            
+            for rank_idx, (cand_id, _) in enumerate(ranked_candidates, start=1):
+                # RRF Formula
+                rrf_score = weight / (k + rank_idx)
+                merged[cand_id] = merged.get(cand_id, 0.0) + rrf_score
 
-        for cand_id in merged:
-            merged[cand_id] = max(0.0, min(1.0, merged[cand_id] / total_weight))
+        # Normalize the final RRF scores to [0, 1] for the downstream ranking engine
+        if not merged:
+            return {}
+            
+        max_rrf = max(merged.values())
+        if max_rrf > 0:
+            for cand_id in merged:
+                merged[cand_id] = merged[cand_id] / max_rrf
 
         return merged
 
