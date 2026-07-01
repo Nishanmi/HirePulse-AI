@@ -130,7 +130,7 @@ class PipelineRunner:
         logger.info("Encoding Job Description role title...")
         jd.normalized_role_title = FeatureEngine.normalize_role_title(jd.title)
         if jd.normalized_role_title:
-            jd_role_emb = encoder.encode_batch([jd.normalized_role_title])[0]
+            jd_role_emb = encoder.encode_batch([jd.normalized_role_title], max_length=16)[0]
             jd.role_embedding = jd_role_emb.tolist()
 
         # 3b. Encode JD Requirements Text for Career Description Evidence
@@ -139,7 +139,7 @@ class PipelineRunner:
         jd_req_parts.extend(jd.responsibilities)
         jd_req_text = " ".join(filter(None, jd_req_parts))
         if jd_req_text.strip():
-            jd_req_emb = encoder.encode_batch([jd_req_text])[0]
+            jd_req_emb = encoder.encode_batch([jd_req_text], max_length=256)[0]
             jd.jd_requirements_embedding = jd_req_emb.tolist()
             
         index = EmbeddingIndex(embedding_dim=encoder.embedding_dim)

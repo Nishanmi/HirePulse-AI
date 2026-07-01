@@ -92,7 +92,7 @@ def main():
                 # If empty, just use a dummy string to avoid encoder errors, or keep it empty
                 role_titles.append(c.normalized_role_title if c.normalized_role_title else "unknown")
                 
-            role_embeddings = encoder.encode_batch(role_titles, batch_size=32)
+            role_embeddings = encoder.encode_batch(role_titles, batch_size=32, max_length=16)
             for c, emb in zip(candidate_batch, role_embeddings):
                 if c.normalized_role_title:
                     c.role_embedding = emb.tolist()
@@ -110,7 +110,7 @@ def main():
                 c.career_role_text = career_text if career_text else None
                 career_texts.append(career_text if career_text else "unknown")
 
-            career_embeddings = encoder.encode_batch(career_texts, batch_size=32)
+            career_embeddings = encoder.encode_batch(career_texts, batch_size=32, max_length=128)
             for c, emb in zip(candidate_batch, career_embeddings):
                 if c.career_role_text:
                     c.career_role_embedding = emb.tolist()
@@ -123,7 +123,7 @@ def main():
                 desc_text = " ".join(descs).strip()
                 desc_texts.append(desc_text if desc_text else "unknown")
 
-            desc_embeddings = encoder.encode_batch(desc_texts, batch_size=32)
+            desc_embeddings = encoder.encode_batch(desc_texts, batch_size=32, max_length=256)
             for c, desc_text, emb in zip(candidate_batch, desc_texts, desc_embeddings):
                 if desc_text != "unknown":
                     c.career_desc_embedding = emb.tolist()

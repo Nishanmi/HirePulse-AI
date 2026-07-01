@@ -48,7 +48,7 @@ class EmbeddingEncoder:
         """
         return self._encode(text)
 
-    def encode_batch(self, texts: list[str], batch_size: int = 32) -> np.ndarray:
+    def encode_batch(self, texts: list[str], batch_size: int = 32, max_length: int = 8192) -> np.ndarray:
         """
         Encodes a batch of texts into dense embedding vectors.
         """
@@ -62,7 +62,7 @@ class EmbeddingEncoder:
                 batch_texts,
                 padding=True,
                 truncation=True,
-                max_length=8192,
+                max_length=max_length,
                 return_tensors="np"
             )
             
