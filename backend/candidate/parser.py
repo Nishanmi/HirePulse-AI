@@ -79,10 +79,16 @@ def stream_candidates_in_batches(file_path: Union[str, Path], batch_size: int = 
     if not path.is_file():
         raise FileNotFoundError(f"Candidate data file not found: {path}")
         
-    if path.suffix.lower() != '.jsonl':
+    is_gz = path.suffix.lower() == '.gz'
+    open_func = gzip.open if is_gz else open
+    
+    base_suffix = path.with_suffix('').suffix.lower() if is_gz else path.suffix.lower()
+    is_jsonl = base_suffix == '.jsonl' or (is_gz and base_suffix == '')
+
+    if not is_jsonl:
         # Fallback for standard JSON: unfortunately we have to load it all, but we can yield in chunks
         logger.info(f"Streaming from standard JSON file (loads into memory first): {path}")
-        with open(path, 'r', encoding='utf-8') as f:
+        with open_func(path, 'rt', encoding='utf-8') as f:
             data = json.load(f)
             batch = []
             for record in data:
@@ -100,7 +106,7 @@ def stream_candidates_in_batches(file_path: Union[str, Path], batch_size: int = 
 
     # Efficient streaming for JSONL
     logger.info(f"Efficiently streaming from JSONL file: {path}")
-    with open(path, 'r', encoding='utf-8') as f:
+    with open_func(path, 'rt', encoding='utf-8') as f:
         batch = []
         for idx, line in enumerate(f):
             line = line.strip()
