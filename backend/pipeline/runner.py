@@ -84,19 +84,22 @@ class PipelineRunner:
             idx_path = Path(index_dir)
             faiss_path = idx_path / "faiss.index"
             bm25_path = idx_path / "bm25.pkl"
-            meta_path = idx_path / "candidate_metadata.pkl"
+            meta_path = idx_path / "candidate_metadata.jsonl"
+            faiss_map_path = idx_path / "faiss_map.pkl"
             
-            if faiss_path.exists() and bm25_path.exists() and meta_path.exists():
+            if faiss_path.exists() and bm25_path.exists() and meta_path.exists() and faiss_map_path.exists():
                 load_from_index = True
                 logger.info("Precomputed artifacts found in %s. Loading them...", index_dir)
             else:
                 logger.info("Precomputed artifacts missing in %s. Falling back to rebuild.", index_dir)
 
         if load_from_index:
-            logger.info("Loading candidates from candidate_metadata.pkl...")
-            with open(meta_path, "rb") as f:
-                metadata = pickle.load(f)
-                candidates = list(metadata["candidates"].values())
+            logger.info("Loading candidates from candidate_metadata.jsonl...")
+            candidates = []
+            with open(meta_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    if line.strip():
+                        candidates.append(Candidate.model_validate_json(line))
             logger.info("Successfully loaded %d candidates from precomputed metadata.", len(candidates))
         else:
             # 1. Parse candidates
@@ -147,7 +150,11 @@ class PipelineRunner:
         if load_from_index:
             logger.info("Loading FAISS index...")
             index._index = faiss.read_index(str(faiss_path))
-            index._candidate_map = metadata["faiss_map"]
+            
+            logger.info("Loading FAISS ID map...")
+            with open(faiss_map_path, "rb") as f:
+                index._candidate_map = pickle.load(f)
+                
             if index._candidate_map:
                 index._next_id = max(index._candidate_map.keys()) + 1
             else:

@@ -64,7 +64,11 @@ def main():
         bm25_strategy = BM25Strategy()
         tokenised_corpus = []
         
-        candidate_map = {}
+        # Open metadata file in truncate/append mode at the start
+        metadata_path = output_dir / "candidate_metadata.jsonl"
+        with open(metadata_path, "w", encoding="utf-8") as f:
+            f.write("") # Truncate if exists
+            
         total_candidates = 0
         
         logger.info("Streaming candidates from %s...", args.candidates)
@@ -76,13 +80,12 @@ def main():
             total_candidates += len(candidate_batch)
             logger.info("Processing batch %d (size: %d)...", batch_idx + 1, len(candidate_batch))
             
-            # Extract texts and ids
-            candidate_texts = [extract_candidate_text(c) for c in candidate_batch]
-            candidate_ids = [c.candidate_id for c in candidate_batch]
+            candidate_ids = []
+            candidate_texts = []
             
-            # Save to global map (stores Pydantic objects for metadata)
             for c in candidate_batch:
-                candidate_map[c.candidate_id] = c
+                candidate_ids.append(c.candidate_id)
+                candidate_texts.append(extract_candidate_text(c))
                 
             # Compute Role Embeddings
             logger.info("Generating role embeddings for batch %d...", batch_idx + 1)
@@ -140,6 +143,20 @@ def main():
             batch_tokens = [bm25_strategy._tokenise(doc) for doc in corpus]
             tokenised_corpus.extend(batch_tokens)
             
+            # 3. Stream Metadata to disk and instantly free RAM
+            with open(metadata_path, "a", encoding="utf-8") as f:
+                for c in candidate_batch:
+                    f.write(c.model_dump_json() + "\n")
+                    
+            # 4. Checkpointing
+            if (batch_idx + 1) % 5 == 0:
+                logger.info("Saving checkpoint (FAISS and BM25) at batch %d...", batch_idx + 1)
+                faiss.write_index(index._index, str(output_dir / "faiss.index"))
+                with open(output_dir / "bm25.pkl", "wb") as f:
+                    pickle.dump(BM25Okapi(tokenised_corpus), f)
+                with open(output_dir / "faiss_map.pkl", "wb") as f:
+                    pickle.dump(index._candidate_map, f)
+            
         if total_candidates == 0:
             logger.error("No candidates found. Exiting.")
             sys.exit(1)
@@ -160,16 +177,14 @@ def main():
             pickle.dump(bm25_index, f)
         logger.info("Saved BM25 index to %s", bm25_path)
 
-        # Finalize Metadata
-        logger.info("Saving candidate metadata...")
-        metadata = {
-            "candidates": candidate_map,
-            "faiss_map": index._candidate_map
-        }
-        meta_path = output_dir / "candidate_metadata.pkl"
-        with open(meta_path, "wb") as f:
-            pickle.dump(metadata, f)
-        logger.info("Saved candidate metadata to %s", meta_path)
+        # Finalize Metadata Map (Only FAISS IDs mapping, very small)
+        logger.info("Saving FAISS ID map...")
+        faiss_map_path = output_dir / "faiss_map.pkl"
+        with open(faiss_map_path, "wb") as f:
+            pickle.dump(index._candidate_map, f)
+        logger.info("Saved FAISS map to %s", faiss_map_path)
+        
+        logger.info("All indexes built successfully! Metadata streamed to %s", metadata_path)
         
         logger.info("All indexes built successfully!")
         
