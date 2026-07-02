@@ -83,7 +83,7 @@ As per Section 10 of the `submission_spec.md`, the pipeline is designed to run e
 To generate the final Top 100 `submission.csv` strictly offline within 5 minutes, execute the following single command:
 
 ```bash
-TRANSFORMERS_OFFLINE=1 HF_HUB_OFFLINE=1 python3 main.py \
+python3 main.py \
   --candidates data/raw/candidates.jsonl.gz \
   --jd data/raw/sample_jd.txt \
   --index-dir indexes \
@@ -114,7 +114,7 @@ Run this block in a fresh Google Colab environment:
 !HF_HUB_OFFLINE=0 python3 scripts/download_model.py
 
 # 4. Run the Sandbox Pipeline STRICTLY OFFLINE on the 100-candidate sample
-!TRANSFORMERS_OFFLINE=1 HF_HUB_OFFLINE=1 python3 main.py \
+!python3 main.py \
   --candidates data/raw/sample_100.jsonl \
   --jd data/raw/sample_jd.txt \
   --out sandbox_results.csv
