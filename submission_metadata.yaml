@@ -66,7 +66,7 @@ methodology_summary: |
   
   First, we parse the 100,000 candidate dataset into highly structured Pydantic domain models to validate data integrity and extract critical timeline features (e.g., career trajectory, overlapping roles). 
   
-  Second, we utilize a highly optimized Hybrid Retrieval pipeline running completely offline. We combine BM25 (for precise keyword-level lexical matching) with Jina Embeddings v2 (quantized to ONNX for lightning-fast CPU semantic similarity). This hybrid approach guarantees we don't miss candidates who use different terminology while strictly enforcing hard technical requirements. 
+  Second, we utilize a highly optimized Hybrid Retrieval pipeline running completely offline. We combine BM25 (for precise keyword-level lexical matching) with Jina Embeddings v2 (exported to ONNX for lightning-fast CPU semantic similarity). This hybrid approach guarantees we don't miss candidates who use different terminology while strictly enforcing hard technical requirements. 
   
   Finally, our Ranking Engine evaluates the narrowed candidate pool across 5 independent axes: Role Alignment, Technical Match, Semantic Fit, Experience Compatibility, and Redrob Behavioral Signals (e.g., endorsements, completeness). By applying a multiplicative Trust Modifier to penalize keyword stuffers and reward validated skills, we ensure the final Top 100 are not just relevant, but provably high-quality and highly recruit-able candidates. The entire pipeline executes entirely offline on a standard CPU.
 

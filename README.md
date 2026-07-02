@@ -14,7 +14,7 @@ HirePulse AI is built on three major pillars:
    We utilize strict Pydantic domain models to validate data integrity. The parser calculates timeline consistency, detects overlapping roles, and extracts critical career trajectory features before the ranking even begins.
 
 2. **Offline Hybrid Retrieval**  
-   We combine the precision of **BM25 (lexical matching)** with the semantic understanding of **Jina Embeddings v2**. To achieve lightning-fast CPU performance, our embedding models are quantized into ONNX format. This hybrid approach ensures we enforce hard technical requirements while capturing candidates who use synonymous terminology.
+   We combine the precision of **BM25 (lexical matching)** with the semantic understanding of **Jina Embeddings v2**. To achieve lightning-fast CPU performance, our embedding models are exported into ONNX format. This hybrid approach ensures we enforce hard technical requirements while capturing candidates who use synonymous terminology.
 
 3. **Multi-Signal Ensemble Ranking**  
    Candidates are evaluated across 5 independent signals:
