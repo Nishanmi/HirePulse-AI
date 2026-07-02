@@ -8,13 +8,13 @@ def main():
     parser.add_argument(
         "--model", 
         type=str, 
-        default="BAAI/bge-small-en-v1.5", 
+        default="jinaai/jina-embeddings-v2-small-en", 
         help="The Hugging Face model ID to download."
     )
     parser.add_argument(
         "--output-dir", 
         type=str, 
-        default="data/models/bge-small-en-v1.5", 
+        default="data/models/jina-embeddings-v2-small-en", 
         help="The local directory to save the model."
     )
     args = parser.parse_args()
@@ -30,7 +30,7 @@ def main():
         repo_id=args.model,
         local_dir=args.output_dir,
         local_dir_use_symlinks=False, # We want the actual files, not symlinks to the global cache
-        ignore_patterns=["*.msgpack", "*.h5", "*.ot", "onnx/*"], # Ignore unused large formats if present
+        ignore_patterns=["*.msgpack", "*.h5", "*.ot"], # Ignore unused large formats if present
     )
     
     print("Download complete! The model is now ready for offline use.")
