@@ -96,11 +96,23 @@ class ExplanationEngine:
         Returns:
             A single explanation string of 1-2 well-formed sentences.
         """
+        # Base intro based on final_score
+        score = features.final_score if features.final_score else 0.0
+        
+        if score > 0.85:
+            intro = "An exceptional match for this role,"
+        elif score > 0.70:
+            intro = "A solid candidate who"
+        elif score > 0.50:
+            intro = "A baseline match who"
+        else:
+            intro = "While falling short in several areas, this candidate"
+            
         # Build the primary sentence (skills + experience + role)
-        primary = self._build_primary_sentence(candidate, features, jd)
+        primary = self._build_primary_sentence(candidate, features, jd, intro, score)
 
         # Build the secondary sentence (recruiter interest + validation)
-        secondary = self._build_secondary_sentence(candidate, features)
+        secondary = self._build_secondary_sentence(candidate, features, score)
 
         if primary and secondary:
             return f"{primary} {secondary}"
@@ -123,6 +135,8 @@ class ExplanationEngine:
         candidate: Candidate,
         features: CandidateFeatures,
         jd: JobDescription,
+        intro: str,
+        score: float
     ) -> Optional[str]:
         """Builds the primary sentence combining matched skills, experience,
         and current role into one cohesive statement."""
@@ -183,17 +197,49 @@ class ExplanationEngine:
         elif years is not None:
             fragments.append(f"has {years:.0f} years of experience{role_ctx}")
 
-        if not fragments:
-            return None
-
-        # Join fragments into a single well-formed sentence
-        sentence = fragments[0].capitalize()
-        if len(fragments) > 1:
-            sentence += ", and " + fragments[1]
-        return sentence + "."
+        # Dynamically construct the sentence based on score to avoid templates
+        sentence = ""
+        years_val = candidate.profile.years_of_experience
+        title_val = candidate.profile.current_title
+        industry_val = candidate.profile.current_industry
+        
+        skills_str = ""
+        if all_matched:
+            skills_str = self._format_skill_list(all_matched, cand_skill_map)
+            
+        if score > 0.75:
+            if skills_str and years_val and title_val:
+                sentence = f"{intro} brings deep expertise in {skills_str}, backed by {years_val:.0f} years of experience as a {title_val.title()}."
+            elif skills_str:
+                sentence = f"{intro} brings deep expertise in {skills_str}."
+            elif years_val and title_val:
+                sentence = f"{intro} brings {years_val:.0f} years of solid experience as a {title_val.title()}."
+        else:
+            if skills_str and industry_val:
+                sentence = f"{intro} possesses foundational knowledge in {skills_str}, though their background in {industry_val} only partially aligns with the core requirements."
+            elif skills_str:
+                sentence = f"{intro} possesses foundational knowledge in {skills_str}."
+            elif years_val:
+                sentence = f"{intro} has {years_val:.0f} years of general experience, but lacks key technical alignments."
+                
+        if not sentence:
+            # Fallback for weird edge cases
+            if fragments:
+                sentence = fragments[0].capitalize()
+                if len(fragments) > 1:
+                    sentence += ", and " + fragments[1]
+                sentence += "."
+            else:
+                return None
+                
+        # Append specific positive callouts if available and not already used
+        if "built relevant infrastructure" in str(fragments):
+            sentence += " They have also built highly relevant infrastructure at previous roles."
+            
+        return sentence
 
     def _build_secondary_sentence(
-        self, candidate: Candidate, features: CandidateFeatures
+        self, candidate: Candidate, features: CandidateFeatures, score: float
     ) -> Optional[str]:
         """Builds the secondary sentence covering recruiter interest and
         validation concerns briefly."""
@@ -210,10 +256,23 @@ class ExplanationEngine:
             else:
                 parts.append("Shows strong recruiter engagement on the platform.")
 
+        # Honest Concerns for lower-ranked candidates
+        if score < 0.60:
+            concerns = []
+            if features.technical_match_score is not None and features.technical_match_score < 0.4:
+                concerns.append("lacks several core technical requirements")
+            if features.experience_score is not None and features.experience_score < 0.4:
+                concerns.append("falls short of the desired seniority")
+            if features.consistency_score is not None and features.consistency_score < 0.05:
+                concerns.append("shows significant profile inconsistency")
+                
+            if concerns:
+                parts.append(f"However, their profile {concerns[0]}, placing them lower in the ranking.")
+                
         # Validation concerns (only when they affected the score)
         if features.validation_score is not None and features.validation_score < 0.4:
             parts.append(
-                "However, profile validation flagged concerns that negatively impacted the ranking."
+                "Furthermore, automated validation flagged concerns that negatively impacted the ranking."
             )
 
         if not parts:
