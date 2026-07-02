@@ -1,0 +1,26 @@
+team_name: "HirePulse AI"
+team_members:
+  - "Nishant"
+approach_summary: |
+  HirePulse AI uses a Hybrid Retrieval engine combining BM25 (lexical) and Jina Embeddings v2 (semantic). 
+  We extract structured Job Description requirements and rank 100,000 candidates entirely offline on CPU.
+  Our final ranking considers multiple independent signals including Role Match, Technical Match, Career Trajectory, and Redrob Validation Signals.
+ai_usage:
+  tools_used:
+    - "Google Antigravity Agent"
+  description: "Used AI agent for architectural planning, implementing the hybrid retrieval pipeline, parsing models, debugging ONNX offline environments, and generating sandbox datasets."
+reproduce_command: "python3 main.py --candidates data/raw/candidates.jsonl.gz --jd data/raw/sample_jd.txt --index-dir indexes --out final_submission.csv"
+sandbox_url: "https://colab.research.google.com/drive/1aItCz42v1Y3kUW4e6pNwtgr-vBj-hasu?usp=sharing"
+sandbox_instructions: |
+  Run the Colab notebook from top to bottom, which executes the following commands on a 100-candidate sample:
+  
+  !git clone https://github.com/Nishanmi/HirePulse-AI.git
+  %cd HirePulse-AI
+  !pip install -r requirements.txt
+  !HF_HUB_OFFLINE=0 python3 scripts/download_model.py
+  !TRANSFORMERS_OFFLINE=1 HF_HUB_OFFLINE=1 python3 main.py --candidates data/raw/sample_100.jsonl --jd data/raw/sample_jd.txt --out sandbox_results.csv
+  
+  # Display Results
+  import pandas as pd
+  pd.read_csv("sandbox_results.csv").head(10)
+honeypot_check_passed: true
