@@ -401,7 +401,7 @@ class ExplanationEngine:
                 formatted.append(display_name)
 
         if len(skills) > 4:
-            formatted.append(f"and {len(skills) - 4} others")
+            formatted.append(f"{len(skills) - 4} others")
 
         if len(formatted) > 1:
             return ", ".join(formatted[:-1]) + f", and {formatted[-1]}"
