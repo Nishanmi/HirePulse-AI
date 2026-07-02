@@ -51,18 +51,24 @@ compute:
 # AI tools declaration
 # ============================================================================
 ai_tools_used:
+  - "ChatGPT"
+  - "DeepSeek"
   - "Google Antigravity Agent"
 
 ai_usage_summary: |
-  Used Google Antigravity Agent for architectural planning, implementing the hybrid retrieval pipeline, parsing models, debugging ONNX offline environments, and generating sandbox datasets. No candidate data was fed to any external LLM.
+  Used ChatGPT for initial architectural planning and system design. Used DeepSeek for reviewing pipeline errors and debugging stack traces. Used Google Antigravity Agent to write the core implementation code, manage the offline ONNX environment, and configure the end-to-end sandbox pipeline. No sensitive candidate data was fed to any external LLM during execution.
 
 # ============================================================================
 # Approach summary (optional but recommended)
 # ============================================================================
 methodology_summary: |
-  HirePulse AI uses a Hybrid Retrieval engine combining BM25 (lexical) and Jina Embeddings v2 (semantic). 
-  We extract structured Job Description requirements and rank 100,000 candidates entirely offline on CPU.
-  Our final ranking considers multiple independent signals including Role Match, Technical Match, Career Trajectory, and Redrob Validation Signals.
+  HirePulse AI approaches intelligent candidate discovery by treating the ranking process exactly like an expert human recruiter: breaking down a Job Description into strict technical requirements, soft skills, and core responsibilities, and then evaluating candidates against those specific axes using a multi-signal ensemble ranking system. 
+  
+  First, we parse the 100,000 candidate dataset into highly structured Pydantic domain models to validate data integrity and extract critical timeline features (e.g., career trajectory, overlapping roles). 
+  
+  Second, we utilize a highly optimized Hybrid Retrieval pipeline running completely offline. We combine BM25 (for precise keyword-level lexical matching) with Jina Embeddings v2 (quantized to ONNX for lightning-fast CPU semantic similarity). This hybrid approach guarantees we don't miss candidates who use different terminology while strictly enforcing hard technical requirements. 
+  
+  Finally, our Ranking Engine evaluates the narrowed candidate pool across 5 independent axes: Role Alignment, Technical Match, Semantic Fit, Experience Compatibility, and Redrob Behavioral Signals (e.g., endorsements, completeness). By applying a multiplicative Trust Modifier to penalize keyword stuffers and reward validated skills, we ensure the final Top 100 are not just relevant, but provably high-quality and highly recruit-able candidates. The entire pipeline executes entirely offline on a standard CPU.
 
 # ============================================================================
 # Declarations
