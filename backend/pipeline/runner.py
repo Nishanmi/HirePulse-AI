@@ -6,6 +6,7 @@ from typing import List, Tuple, Optional
 import faiss
 
 from backend.candidate.parser import parse_candidates
+from backend.models import Candidate
 from backend.jd.extractor import JDExtractor
 from backend.embeddings.encoder import EmbeddingEncoder
 from backend.embeddings.index import EmbeddingIndex
